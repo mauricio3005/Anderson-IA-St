@@ -5,32 +5,24 @@ from dotenv import load_dotenv
 
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Chatbot com IA", page_icon="🤖")
-st.title("🤖 Chatbot com Instruções Customizadas")
-st.caption("Um chat com memória que usa um arquivo de instruções para definir seu comportamento.")
+st.title("🤖 Chatbot com Gatilhos de Venda")
+st.caption("Um chat que interpreta a intenção do cliente e dispara alertas.")
 
 # --- 2. Gerenciamento de Chaves (Seguro para Deploy) ---
-
-# Esta função tenta buscar a chave da API de duas formas:
-# 1. Dos "Secrets" do Streamlit (quando está no ar, no servidor)
-# 2. De um arquivo .env (quando está rodando localmente na sua máquina)
 def carregar_api_key():
     try:
-        # Tenta pegar a chave dos secrets do Streamlit (ambiente de produção)
         api_key = st.secrets["OPENAI_API_KEY"]
     except Exception:
-        # Se não conseguir, carrega do .env (ambiente de desenvolvimento local)
         load_dotenv()
         api_key = os.getenv("OPENAI_API_KEY")
     return api_key
 
 key = carregar_api_key()
-
 if not key:
     st.error("Chave da API da OpenAI não encontrada! 😢")
-    st.info("Se estiver rodando online, configure a chave em 'Settings > Secrets'. Se for localmente, verifique seu arquivo .env.")
+    st.info("Configure a chave em 'Settings > Secrets' ou no arquivo .env.")
     st.stop()
 
-# Inicializa o cliente da OpenAI
 try:
     client = OpenAI(api_key=key)
 except Exception as e:
@@ -39,18 +31,17 @@ except Exception as e:
 
 # --- 3. Carregamento das Instruções do Agente ---
 try:
-    with open('Instructions.txt', 'r', encoding='utf-8') as file:
+    with open('Banco de dados/Instructions.txt', 'r', encoding='utf-8') as file:
         instructions = file.read()
 except FileNotFoundError:
     st.error("Arquivo de instruções 'Banco de dados/Instructions.txt' não encontrado. 📄")
-    st.info("Verifique se o arquivo e a pasta existem no seu repositório do GitHub.")
     st.stop()
 
 # --- 4. Gerenciamento do Histórico da Conversa ---
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "system", "content": instructions},
-        {"role": "assistant", "content": "Olá! Como posso te ajudar hoje?"}
+        {"role": "assistant", "content": "Olá! Sou o assistente de vendas da VIA PERSONNALITY. Como posso te ajudar hoje?"}
     ]
 
 # --- 5. Exibição das Mensagens do Histórico ---
@@ -70,12 +61,31 @@ if prompt := st.chat_input("Digite sua mensagem aqui..."):
             try:
                 response = client.chat.completions.create(
                     model="gpt-4o",
-                    messages=st.session_state.messages
+                    messages=[msg for msg in st.session_state.messages]
                 )
-                resposta_assistente = response.choices[0].message.content
-                st.markdown(resposta_assistente)
-                st.session_state.messages.append({"role": "assistant", "content": resposta_assistente})
+                resposta_completa = response.choices[0].message.content
+
+                # --- NOVO: Lógica de Detecção e Processamento de Gatilhos ---
+                mensagem_para_exibir = resposta_completa
+                
+                if "[GATILHO:FECHAMENTO]" in resposta_completa:
+                    st.info(" GATILHO DETECTADO: Cliente demonstrou intenção de FECHAMENTO!")
+                    mensagem_para_exibir = resposta_completa.replace("[GATILHO:FECHAMENTO]", "").strip()
+
+                elif "[GATILHO:INSATISFACAO]" in resposta_completa:
+                    st.warning(" GATILHO DETECTADO: Cliente demonstrou INSATISFAÇÃO ou agressividade!")
+                    mensagem_para_exibir = resposta_completa.replace("[GATILHO:INSATISFACAO]", "").strip()
+
+                elif "[GATILHO:COTACAO]" in resposta_completa:
+                    st.success(" GATILHO DETECTADO: Cliente confirmou o desejo de COTAÇÃO!")
+                    mensagem_para_exibir = resposta_completa.replace("[GATILHO:COTACAO]", "").strip()
+
+                # Exibe a resposta limpa para o usuário
+                st.markdown(mensagem_para_exibir)
+                
+                # Adiciona a resposta limpa ao histórico
+                st.session_state.messages.append({"role": "assistant", "content": mensagem_para_exibir})
+
             except Exception as e:
                 st.error(f"Ocorreu um erro ao contatar a API da OpenAI: {e}")
-
 
