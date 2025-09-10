@@ -39,7 +39,7 @@ except Exception as e:
 
 # --- 3. Carregamento das Instruções do Agente ---
 try:
-    with open('Banco de dados/Instructions.txt', 'r', encoding='utf-8') as file:
+    with open('Instructions.txt', 'r', encoding='utf-8') as file:
         instructions = file.read()
 except FileNotFoundError:
     st.error("Arquivo de instruções 'Banco de dados/Instructions.txt' não encontrado. 📄")
@@ -77,4 +77,5 @@ if prompt := st.chat_input("Digite sua mensagem aqui..."):
                 st.session_state.messages.append({"role": "assistant", "content": resposta_assistente})
             except Exception as e:
                 st.error(f"Ocorreu um erro ao contatar a API da OpenAI: {e}")
+
 
